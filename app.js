@@ -9,8 +9,8 @@ const MONZO_REFRESH_TOKEN_KEY = 'monzo_refresh_token';
 const MONZO_EXPIRES_AT_KEY = 'monzo_expires_at';
 
 // Monzo API configuration
-const MONZO_CLIENT_ID = 'user_0000AC1eMan9KEFwMxcKav';
-const MONZO_CLIENT_SECRET = 'eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJlYiI6Ii91cDllOXRhcGs5QWh4VWdQYkFBIiwianRpIjoiYWNjdG9rXzAwMDBBdk15ZzlaVU90SnlFamU5SW4iLCJ0eXAiOiJhdCIsInYiOiI2In0.fQJ-gKE2vAXOjg7NIGHU6lmz2i0uB4LayRvvqbCsyx680M0nfsWde6_SxZaj1jugjaxKletxW2Zb3bZwtCvqjw';
+const MONZO_CLIENT_ID = 'oauth2client_0000AvN2JYIggyWYAfnoOa';
+const MONZO_CLIENT_SECRET = 'mnzpub./vlqnB9GHmtngnluQUWPD43rLZpF0mdTnJY296pzZcz7iCpE2AbtSOHRcrXmDPlpqX5WYkqSUqIWEKFwD3y/aw==';
 const MONZO_REDIRECT_URI = 'https://manasnagesh01.github.io/budget-app/monzo_callback.html';
 
 // Security check - Monzo requires HTTPS
