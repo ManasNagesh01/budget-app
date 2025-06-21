@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Budget Tracker</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container py-4">
+        <h1 class="text-center mb-4">Personal Budget Tracker</h1>
+            <p class="text-center" id="rateInfo"></p>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs" id="budgetTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab">Daily Expenses</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab">Monthly Expenses</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="loan-tab" data-bs-toggle="tab" data-bs-target="#loan" type="button" role="tab">EMI & Loans</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="loanbal-tab" data-bs-toggle="tab" data-bs-target="#loanbal" type="button" role="tab">Loan Balance</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" type="button" role="tab">Summary</button>
+            </li>
+        </ul>
+
+        <div class="tab-content pt-3" id="budgetTabsContent">
+            <!-- Daily Expenses Tab -->
+            <div class="tab-pane fade show active" id="daily" role="tabpanel" aria-labelledby="daily-tab">
+                <h5>Daily Expenses</h5>
+                <div class="mb-3">
+                    <button id="monzoConnect" class="btn btn-primary mb-3">Connect Monzo Account</button>
+                    <div id="monzoStatus" class="alert alert-info d-none">
+                        <strong>Status:</strong> <span id="monzoStatusText">Not connected</span>
+                    </div>
+                </div>
+                <form id="dailyForm" class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <input type="date" class="form-control" id="dailyDate" required>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="dailyNote" placeholder="Description" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" step="0.01" min="0" class="form-control" id="dailyAmount" placeholder="Amount" required>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button class="btn btn-primary" type="submit">Add</button>
+                    </div>
+                </form>
+                <table class="table table-striped mt-3" id="dailyTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Amount</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <p class="text-end fw-bold">Today's Total: £<span id="dailyTotal">0</span></p>
+            </div>
+
+            <!-- Monthly Expenses Tab -->
+            <div class="tab-pane fade" id="monthly" role="tabpanel" aria-labelledby="monthly-tab">
+                <form id="monthlyForm" class="row g-3">
+                    <div class="col-md-6">
+                        <input type="month" class="form-control" id="monthlyMonth" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" step="0.01" min="0" class="form-control" id="monthlyAmount" placeholder="Amount" required>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="monthlyCurrency">
+                            <option value="GBP" selected>£ GBP</option>
+                            <option value="INR">₹ INR</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button class="btn btn-primary" type="submit">Add</button>
+                    </div>
+                </form>
+                <table class="table table-striped mt-3" id="monthlyTable">
+                    <thead>
+                        <tr>
+                            <th>Month</th>
+                            <th>Amount</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <p class="text-end fw-bold">Total: £<span id="monthlyTotal">0</span></p>
+                <canvas id="monthlyChart" class="mt-4" height="100"></canvas>
+            </div>
+
+            <!-- Loan & EMI Tab -->
+            <div class="tab-pane fade" id="loan" role="tabpanel" aria-labelledby="loan-tab">
+                <form id="loanForm" class="row g-3">
+                    <div class="col-md-4">
+                        <input type="text" class="form-control" id="loanName" placeholder="Loan / EMI Name" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" step="0.01" min="0" class="form-control" id="loanAmount" placeholder="Monthly EMI" required>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="loanCurrency">
+                            <option value="GBP" selected>£ GBP</option>
+                            <option value="INR">₹ INR</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-grid">
+                        <button class="btn btn-primary" type="submit">Add</button>
+                    </div>
+                </form>
+                <table class="table table-striped mt-3" id="loanTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Monthly EMI</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <p class="text-end fw-bold">Today's Total: £<span id="dailyTotal">0</span></p>
+                <canvas id="loanChart" class="mt-4" height="100"></canvas>
+            </div>
+
+            <!-- Loan Balance Tab -->
+            <div class="tab-pane fade" id="loanbal" role="tabpanel" aria-labelledby="loanbal-tab">
+                <h5>Add New Loan</h5>
+                <form id="loanBalForm" class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <input type="text" class="form-control" id="loanBalName" placeholder="Loan Name" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" step="0.01" min="0" class="form-control" id="loanBalPrincipal" placeholder="Principal Amount" required>
+                    </div>
+                    <div class="col-md-2">
+                        <select id="loanBalCurrency" class="form-select">
+                            <option value="GBP">£ GBP</option>
+                            <option value="INR">₹ INR</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" step="0.01" min="0" class="form-control" id="loanBalRate" placeholder="Interest %/yr" required>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button class="btn btn-primary" type="submit">Add Loan</button>
+                    </div>
+                </form>
+
+                <h5>Pay Loan</h5>
+                <form id="loanPayForm" class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <select id="loanPaySelect" class="form-select" required></select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="date" class="form-control" id="loanPayDate" required>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" step="0.01" min="0" class="form-control" id="loanPayAmount" placeholder="Payment Amount" required>
+                    </div>
+                    <div class="col-md-2">
+                        <select id="loanPayCurrency" class="form-select">
+                            <option value="GBP">£ GBP</option>
+                            <option value="INR">₹ INR</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button class="btn btn-success" type="submit">Pay</button>
+                    </div>
+                </form>
+
+                <table class="table table-striped" id="loanBalTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Currency</th>
+                            <th>Remaining Principal</th>
+                            <th>Interest %/yr</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <!-- Loan History Modal -->
+<div class="modal fade" id="loanHistoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Loan Payment History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Loan Details</h6>
+                            <p><strong>Name:</strong> <span id="loanName"></span></p>
+                            <p><strong>Initial Principal:</strong> <span id="initialPrincipal"></span></p>
+                            <p><strong>Interest Rate:</strong> <span id="interestRate"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Payment Summary</h6>
+                            <p><strong>Total Payments:</strong> <span id="totalPayments"></span></p>
+                            <p><strong>Remaining Principal:</strong> <span id="remainingPrincipal"></span></p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Payment Amount</th>
+                                    <th>Currency</th>
+                                    <th>Remaining Principal</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Tab -->
+            <div class="tab-pane fade" id="summary" role="tabpanel" aria-labelledby="summary-tab">
+                <div class="row g-3 align-items-center">
+                    <div class="col-auto">
+                        <label for="summaryMonth" class="col-form-label">Select Month:</label>
+                    </div>
+                    <div class="col-auto">
+                        <input type="month" id="summaryMonth" class="form-control">
+                    </div>
+                    <div class="col-auto">
+                        <button id="calcSummary" class="btn btn-success">Calculate</button>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <h4>Total Spent (selected month): <span id="totalSpent">0</span></h4>
+                    <h4 class="mt-2">Today Spent: <span id="todaySpent">0</span></h4>
+                </div>
+                <canvas id="monthChart" class="mt-4" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
