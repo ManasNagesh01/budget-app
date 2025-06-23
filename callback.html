@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monzo OAuth Callback</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+</head>
+<body class="bg-light">
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h5 class="card-title">Connecting to Monzo</h5>
+                        <p class="card-text">Please wait while we connect your Monzo account...</p>
+                        <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Check if we're coming back from Monzo OAuth
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
+            const errorDescription = urlParams.get('error_description');
+
+            const errorMessage = document.getElementById('errorMessage');
+
+            if (error) {
+                errorMessage.textContent = errorDescription || 'An error occurred during Monzo authorization';
+                errorMessage.classList.remove('d-none');
+                return;
+            }
+
+
+            if (code && state) {
+                try {
+                    // Verify state matches current user for security
+                    const currentUser = auth.currentUser;
+                    if (!currentUser || currentUser.uid !== state) {
+                        throw new Error('User authentication mismatch');
+                    }
+
+                    // Exchange code for tokens
+                    const response = await fetch('https://api.monzo.com/oauth2/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            grant_type: 'authorization_code',
+                            client_id: 'YOUR_MONZO_CLIENT_ID',
+                            client_secret: 'YOUR_MONZO_CLIENT_SECRET',
+                            redirect_uri: window.location.origin + '/callback.html',
+                            code: code
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.access_token) {
+                        // Save tokens to Firestore
+                        await db.collection('users').doc(currentUser.uid).set({
+                            monzo: {
+                                accessToken: data.access_token,
+                                refreshToken: data.refresh_token,
+                                expiresAt: Date.now() + (data.expires_in * 1000),
+                                lastUpdated: new Date().toISOString()
+                            }
+                        }, { merge: true });
+
+                        // Redirect back to main app
+                        window.location.href = '/';
+                    } else {
+                        throw new Error(data.error_description || 'Failed to get access token');
+                    }
+                } catch (error) {
+                    console.error('Error during Monzo OAuth:', error);
+                    errorMessage.textContent = error.message || 'Failed to connect Monzo account';
+                    errorMessage.classList.remove('d-none');
+                }
+            } else {
+                errorMessage.textContent = 'Missing required parameters from Monzo';
+                errorMessage.classList.remove('d-none');
+            }
+        });
+    </script>
+</body>
+</html>
