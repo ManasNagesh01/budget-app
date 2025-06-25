@@ -65,8 +65,10 @@ async function handleLogin() {
     try {
         await auth.signInWithEmailAndPassword(email, password);
         errorElement.textContent = '';
+        return true;
     } catch (error) {
         errorElement.textContent = error.message;
+        return false;
     }
 }
 
@@ -78,14 +80,15 @@ async function handleSignup() {
     
     if (password !== confirmPassword) {
         errorElement.textContent = 'Passwords do not match';
-        return;
+        return false;
     }
     
     try {
-        await auth.createUserWithEmailAndPassword(email, password);
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         errorElement.textContent = '';
+        
         // Initialize user data in Firestore
-        await db.collection('users').doc(auth.currentUser.uid).set({
+        await db.collection('users').doc(userCredential.user.uid).set({
             email: email,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             dailyExpenses: [],
@@ -93,15 +96,19 @@ async function handleSignup() {
             loans: [],
             loanBalances: []
         });
+        return true;
     } catch (error) {
         errorElement.textContent = error.message;
+        return false;
     }
 }
 
+async function saveUserData(data) {
+    try {
 // Data Management Functions
 function getUserDocRef() {
-    if (!currentUser) throw new Error('User not authenticated');
-    return db.collection('users').doc(currentUser.uid);
+    if (!auth.currentUser) throw new Error('User not authenticated');
+    return db.collection('users').doc(auth.currentUser.uid);
 }
 
 async function loadUserData() {
@@ -136,75 +143,25 @@ async function saveUserData(data) {
     }
 }
 
-// Data loading and saving functions
 async function loadData(key) {
-    if (!currentUser) return [];
-    const doc = await getUserDocRef().get();
-    return doc.data()[key] || [];
-}
-
-async function saveData(key, data) {
-    if (!currentUser) return;
-    await getUserDocRef().update({ [key]: data });
-}
-
-// Authentication Functions
-async function handleLogin(email, password) {
     try {
-        await auth.signInWithEmailAndPassword(email, password);
-        return { success: true };
+        const userDoc = await getUserDocRef().get();
+        return userDoc.exists ? (userDoc.data()[key] || []) : [];
     } catch (error) {
-        return { success: false, error: error.message };
-    }
-}
-
-async function handleSignup(email, password) {
-    try {
-        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-        const user = userCredential.user;
-        
-        // Create user document in Firestore
-        await db.collection('users').doc(user.uid).set({
-            email: user.email,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            dailyExpenses: [],
-            monthlyExpenses: [],
-            loans: [],
-            loanBalances: []
-        });
-        
-        return { success: true };
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
-}
-
-// Data Management Functions
-async function loadUserData() {
-    if (!auth.currentUser) return;
-    
-    try {
-        const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
-        if (userDoc.exists) {
-            const userData = userDoc.data();
-            renderDaily(userData.dailyExpenses || []);
-            renderMonthly(userData.monthlyExpenses || []);
-            renderLoans(userData.loans || []);
-            renderLoanBalance(userData.loanBalances || []);
-        }
-    } catch (error) {
-        console.error('Error loading user data:', error);
+        console.error('Error loading data:', error);
+        return [];
     }
 }
 
 async function saveData(key, data) {
-    if (!auth.currentUser) return;
     try {
-        await db.collection('users').doc(auth.currentUser.uid).update({
-            [key]: data
-        });
+        const update = {};
+        update[key] = data;
+        await getUserDocRef().update(update);
+        return true;
     } catch (error) {
         console.error('Error saving data:', error);
+        return false;
     }
 }
 
