@@ -103,8 +103,6 @@ async function handleSignup() {
     }
 }
 
-async function saveUserData(data) {
-    try {
 // Data Management Functions
 function getUserDocRef() {
     if (!auth.currentUser) throw new Error('User not authenticated');
@@ -470,43 +468,7 @@ async function refreshMonzoToken(refreshToken) {
     }
 }
 
-async function fetchMonzoTransactions(accountId) {
-    try {
-        const today = new Date().toISOString().split('T')[0];
-        const response = await fetch(`https://api.monzo.com/transactions?account_id=${accountId}&since=${today}`, {
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem(MONZO_ACCESS_TOKEN_KEY)}`
-            }
-        });
-        
-        const data = await response.json();
-        
-        // Process transactions
-        const dailyData = load(DAILY_KEY);
-        
-        data.transactions.forEach(transaction => {
-            if (transaction.amount < 0) { // Only process expenses
-                const existing = dailyData.find(d => 
-                    d.note === transaction.merchant?.name || transaction.description &&
-                    d.amount === -transaction.amount / 100
-                );
-                
-                if (!existing) {
-                    dailyData.push({
-                        date: transaction.created.split('T')[0],
-                        note: transaction.merchant?.name || transaction.description,
-                        amount: -transaction.amount / 100
-                    });
-                }
-            }
-        });
-        
-        save(DAILY_KEY, dailyData);
-        renderDaily();
-    } catch (error) {
-        console.error('Error fetching Monzo transactions:', error);
-    }
-}
+
 const dailyForm = document.getElementById('dailyForm');
 const dailyTableBody = document.querySelector('#dailyTable tbody');
 
@@ -863,7 +825,55 @@ function viewLoanPayments(loanName, payments = []) {
 
 // Initialize loan balance section
 if (loanBalForm) {
-    loanBalForm.addEventListener('submit', addLoanPayment);
+    loanBalForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!auth.currentUser) return;
+        
+        const name = document.getElementById('loanBalName').value.trim();
+        const principal = parseFloat(document.getElementById('loanBalPrincipal').value);
+        const currency = document.getElementById('loanBalCurrency').value;
+        const rate = parseFloat(document.getElementById('loanBalRate').value);
+        
+        if (!name || isNaN(principal) || isNaN(rate)) return;
+        
+        try {
+            const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+            const userData = userDoc.data();
+            const loans = userData.loans || [];
+            
+            // Create new loan object
+            const loan = {
+                name,
+                principal,
+                currency,
+                rate,
+                payments: []
+            };
+            
+            // Check if loan exists
+            const existingLoanIndex = loans.findIndex(l => l.name.toLowerCase() === name.toLowerCase());
+            
+            if (existingLoanIndex >= 0) {
+                // Update existing loan
+                loans[existingLoanIndex] = loan;
+            } else {
+                // Add new loan
+                loans.push(loan);
+            }
+            
+            // Save to Firestore
+            await db.collection('users').doc(auth.currentUser.uid).update({
+                loans: loans
+            });
+            
+            // Update UI
+            renderLoanBalance();
+            loanBalForm.reset();
+        } catch (error) {
+            console.error('Error saving loan balance:', error);
+            alert('Failed to save loan. Please try again.');
+        }
+    });
     
     // Set default date to today
     if (document.getElementById('loanPayDate')) {
@@ -875,76 +885,62 @@ if (loanBalForm) {
     renderLoanBalance();
 }
 
-if(loanBalForm){
-    loanBalForm.addEventListener('submit',e=>{
-        e.preventDefault();
-        const name=document.getElementById('loanBalName').value.trim();
-        const principal=parseFloat(document.getElementById('loanBalPrincipal').value);
-        const currency=document.getElementById('loanBalCurrency').value;
-        const rate=parseFloat(document.getElementById('loanBalRate').value);
-        if(!name||isNaN(principal)||isNaN(rate)) return;
-        const data=load(LOAN_BAL_KEY);
-        const idx=data.findIndex(l=>l.name.toLowerCase()===name.toLowerCase());
+// Render loan balance summary
+async function renderLoanBalance() {
+    if (!auth.currentUser) return;
+    
+    try {
+        const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+        const userData = userDoc.data() || {};
+        const loans = userData.loans || [];
         
-        // Create new loan object with all required fields
-        const loan = {
-            name,
-            principal,
-            currency,
-            rate,
-            payments: []
-        };
+        // Generate table rows
+        loanBalTableBody.innerHTML = loans.map((loan, i) => `
+            <tr>
+                <td>${loan.name || ''}</td>
+                <td>${loan.currency === 'GBP' ? '£' : '₹'}</td>
+                <td>${(loan.principal || 0).toFixed(2)} ${loan.currency || ''}</td>
+                <td>${(loan.rate || 0).toFixed(2)}%</td>
+                <td>
+                    <button class='btn btn-sm btn-danger' data-del='loan' data-index='${i}'>×</button>
+                    <button class='btn btn-sm btn-info ms-1' data-view-loan='${i}'>View</button>
+                </td>
+            </tr>
+        `).join('');
         
-        if(idx >= 0) {
-            // Update existing loan
-            data[idx] = loan;
-        } else {
-            // Add new loan
-            data.push(loan);
+    } catch (error) {
+        console.error('Error rendering loan balance:', error);
+    }
+}
+async function calculateTodaySpend() {
+    try {
+        if (!auth.currentUser) return;
+        
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const userDoc = await db.collection('users').doc(auth.currentUser.uid).get();
+        const userData = userDoc.data() || {};
+        
+        const dailyExpenses = userData.dailyExpenses || [];
+        const monthlyExpenses = userData.monthlyExpenses || [];
+        
+        const dailyToday = dailyExpenses.filter(d => d.date === todayStr);
+        const currentMonth = todayStr.slice(0, 7);
+        const monthlyThisMonth = monthlyExpenses.find(m => m.month === currentMonth);
+        
+        const dailyTotal = dailyToday.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+        const monthlyTotal = monthlyThisMonth ? (parseFloat(monthlyThisMonth.amount) || 0) : 0;
+        const total = dailyTotal + monthlyTotal;
+        
+        const totalSpan = document.getElementById('dailyTotal');
+        if (totalSpan) {
+            totalSpan.textContent = total.toFixed(2);
         }
         
-        save(LOAN_BAL_KEY, data);
-        loanBalForm.reset();
-        renderLoanBalance();
-    });
-}
-if(loanPayForm){
-    loanPayForm.addEventListener('submit',e=>{
-        e.preventDefault();
-        const idx=parseInt(loanPaySelect.value,10);
-        const payAmt=parseFloat(document.getElementById('loanPayAmount').value);
-        const payDate=document.getElementById('loanPayDate').value;
-        const currency=document.getElementById('loanPayCurrency').value;
-        const data=load(LOAN_BAL_KEY);
-        if(idx>=0&&idx<data.length&&!isNaN(payAmt)&&payDate){
-            // Update loan principal and add payment
-            data[idx].principal=Math.max(0,data[idx].principal-payAmt);
-            if(!data[idx].payments) data[idx].payments=[];
-            data[idx].payments.push({date:payDate,amount:payAmt,currency});
-            save(LOAN_BAL_KEY,data);
-            loanPayForm.reset();
-            renderLoanBalance();
-        }
-    });
-}
-
-function renderLoanBalance(){
-    const data=load(LOAN_BAL_KEY);
-    loanBalTableBody.innerHTML=data.map((l,i)=>`<tr><td>${l.name}</td><td>${l.currency==='GBP'?'£':'₹'}</td><td>${l.principal.toFixed(2)} ${l.currency}</td><td>${l.rate.toFixed(2)}</td><td><button class='btn btn-sm btn-danger' data-del='loanbal' data-index='${i}'>&times;</button><button class='btn btn-sm btn-secondary ms-1' data-view='loanbal' data-index='${i}'>History</button></td></tr>`).join('');
-    loanPaySelect.innerHTML=data.map((l,i)=>`<option value='${i}'>${l.name} (Remaining £${l.principal.toFixed(2)})</option>`).join('');
-}
-function calculateTodaySpend() {
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const daily = load(DAILY_KEY);
-    const dailyToday = daily.filter(d => d.date === todayStr);
-    const monthly = load(MONTHLY_KEY);
-    const currentMonth = todayStr.slice(0, 7);
-    const monthlyThisMonth = monthly.find(m => m.month === currentMonth);
-    const dailyTotal = dailyToday.reduce((s, d) => s + d.amount, 0);
-    const monthlyTotal = monthlyThisMonth ? monthlyThisMonth.amount : 0;
-    const total = dailyTotal + monthlyTotal;
-    const totalSpan = document.getElementById('dailyTotal');
-    if(totalSpan) totalSpan.textContent = total.toFixed(2);
+        return total;
+    } catch (error) {
+        console.error('Error calculating today\'s spend:', error);
+        return 0;
+    }
 }
 
 // Render summary chart
@@ -1056,92 +1052,131 @@ function updateChart(data) {
     });
 }
 
-// Global delete handler
+// Global click handler for delete and view payments
 document.addEventListener('click', async function(e) {
-    if (e.target.tagName !== 'BUTTON' || !e.target.hasAttribute('data-del')) {
+    // Check if this is a delete button click
+    if (e.target.tagName === 'BUTTON' && e.target.hasAttribute('data-del')) {
+        e.preventDefault();
+        
+        const type = e.target.getAttribute('data-del');
+        const idx = parseInt(e.target.getAttribute('data-index'));
+        const key = type === 'daily' ? 'dailyExpenses' : 
+                   type === 'monthly' ? 'monthlyExpenses' :
+                   type === 'loan' ? 'loans' : 'loanBalances';
+        
+        try {
+            const data = await loadData(key);
+            if (idx >= 0 && idx < data.length) {
+                data.splice(idx, 1);
+                await saveData(key, data);
+                
+                // Re-render the appropriate section
+                if (type === 'daily') renderDaily(data);
+                else if (type === 'monthly') renderMonthly(data);
+                else if (type === 'loan') renderLoans(data);
+                else if (type === 'loanbal') renderLoanBalance(data);
+                
+                if (typeof renderSummary === 'function') {
+                    renderSummary();
+                }
+            }
+        } catch (error) {
+            console.error('Error deleting item:', error);
+        }
+    } 
+    // Handle view loan payments button
+    else if (e.target.classList.contains('view-payments')) {
+        e.preventDefault();
+        const loanName = e.target.getAttribute('data-loan-name');
+        const loanPayments = JSON.parse(e.target.getAttribute('data-payments') || '[]');
         
         // Update loan details
-        document.getElementById('loanName').textContent = loan.name;
-        document.getElementById('initialPrincipal').textContent = `${loan.currency==='GBP'?'£':'₹'}${loan.principal.toFixed(2)}`;
-        document.getElementById('interestRate').textContent = `${loan.rate.toFixed(2)}%`;
-        document.getElementById('remainingPrincipal').textContent = `${loan.currency==='GBP'?'£':'₹'}${loan.principal.toFixed(2)}`;
-        
-        // Calculate total payments
-        const totalPayments = loan.payments ? loan.payments.reduce((sum, p) => sum + p.amount, 0) : 0;
-        document.getElementById('totalPayments').textContent = `${loan.currency==='GBP'?'£':'₹'}${totalPayments.toFixed(2)}`;
+        const loanNameElement = document.getElementById('loanName');
+        if (loanNameElement) {
+            loanNameElement.textContent = loanName;
+        }
         
         // Populate history table
         const historyTableBody = document.getElementById('historyTableBody');
-        if(loan.payments && loan.payments.length) {
-            historyTableBody.innerHTML = loan.payments.map(p => `
-                <tr>
-                    <td>${new Date(p.date).toLocaleDateString()}</td>
-                    <td>${p.currency==='GBP'?'£':'₹'}${p.amount.toFixed(2)}</td>
-                    <td>${p.currency}</td>
-                    <td>${loan.currency==='GBP'?'£':'₹'}${(loan.principal + p.amount).toFixed(2)}</td>
-                </tr>
-            `).join('');
-        } else {
-            historyTableBody.innerHTML = '<tr><td colspan="4" class="text-center">No payments yet</td></tr>';
+        if (historyTableBody) {
+            if (loanPayments && loanPayments.length) {
+                historyTableBody.innerHTML = loanPayments.map(payment => `
+                    <tr>
+                        <td>${new Date(payment.date).toLocaleDateString()}</td>
+                        <td>${payment.currency === 'GBP' ? '£' : '₹'}${(payment.amount || 0).toFixed(2)}</td>
+                        <td>${payment.currency || ''}</td>
+                        <td>${payment.currency === 'GBP' ? '£' : '₹'}${(payment.remainingBalance || 0).toFixed(2)}</td>
+                    </tr>`
+                ).join('');
+            } else {
+                historyTableBody.innerHTML = '<tr><td colspan="4" class="text-center">No payments found</td></tr>';
+            }
         }
         
-        modal.show();
-        return;
-    }
-    const btn = e.target.closest('[data-del]');
-    if (!btn || !currentUser) return;
-    
-    const type = btn.dataset.del;
-    const idx = parseInt(btn.dataset.index);
-    const key = type === 'daily' ? 'dailyExpenses' : 
-                (type === 'monthly' ? 'monthlyExpenses' : 
-                (type === 'loan' ? 'loans' : 'loanBalances'));
-    
-    try {
-        const data = await loadData(key);
-        if (idx >= 0 && idx < data.length) {
-            data.splice(idx, 1);
-            await saveData(key, data);
-            
-            // Re-render the appropriate section
-            if (type === 'daily') renderDaily(data);
-            else if (type === 'monthly') renderMonthly(data);
-            else if (type === 'loan') renderLoans(data);
-            else if (type === 'loanbal') renderLoanBalance(data);
-            
-            renderSummary();
+        // Show the modal
+        const modalElement = document.getElementById('loanHistoryModal');
+        if (modalElement) {
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
         }
-    } catch (error) {
-        console.error('Error deleting item:', error);
     }
 });
-// Chart.js global ref
-let monthChartInstance;
+
+// Chart.js global reference
+let monthChartInstance = null;
 
 // Summary calculation
 const calcBtn = document.getElementById('calcSummary');
 const totalSpan = document.getElementById('totalSpent');
 const todaySpan = document.getElementById('todaySpent');
 
-calcBtn.addEventListener('click', () => {
-    const selectedMonth = document.getElementById('summaryMonth').value; // yyyy-mm
-    if (!selectedMonth) return;
+if (calcBtn && totalSpan && todaySpan) {
+    calcBtn.addEventListener('click', async () => {
+        const selectedMonth = document.getElementById('summaryMonth')?.value; // yyyy-mm
+        if (!selectedMonth) return;
 
-    // Daily total for selected month
-    const daily = load(DAILY_KEY)
-        .filter(item => item.date.startsWith(selectedMonth))
-        .reduce((sum, item) => sum + item.amount, 0);
+        try {
+            // Load all necessary data
+            const [dailyExpenses, monthlyExpenses, loans] = await Promise.all([
+                loadData('dailyExpenses'),
+                loadData('monthlyExpenses'),
+                loadData('loans')
+            ]);
 
-    // Monthly expense for selected month if exists
-    const monthlyData = load(MONTHLY_KEY);
-    const monthEntry = monthlyData.find(m => m.month === selectedMonth);
-    const monthlyAmt = monthEntry ? monthEntry.amount : 0;
+            // Calculate daily total for selected month
+            const daily = dailyExpenses
+                .filter(item => item.date.startsWith(selectedMonth))
+                .reduce((sum, item) => sum + item.amount, 0);
 
-    // Loans total (assumed to be monthly recurring)
-    const loansTotal = load(LOAN_KEY).reduce((sum, l) => sum + l.amount, 0);
+            // Monthly expense for selected month if exists
+            const monthEntry = monthlyExpenses.find(m => m.month === selectedMonth);
+            const monthlyAmt = monthEntry ? monthEntry.amount : 0;
 
-    const total = daily + monthlyAmt + loansTotal;
-    totalSpan.textContent = total.toFixed(2);
+            // Loans total (assumed to be monthly recurring)
+            const loansTotal = loans.reduce((sum, l) => sum + l.amount, 0);
 
-    buildMonthChart();
-});
+            const total = daily + monthlyAmt + loansTotal;
+            totalSpan.textContent = total.toFixed(2);
+
+            // Update today's spend
+            try {
+                const todaySpend = await calculateTodaySpend();
+                if (todaySpan) {
+                    todaySpan.textContent = todaySpend.toFixed(2);
+                }
+            } catch (error) {
+                console.error('Error calculating today\'s spend:', error);
+                if (todaySpan) {
+                    todaySpan.textContent = '0.00';
+                }
+            }
+
+            // Update the chart
+            if (typeof renderSummary === 'function') {
+                renderSummary();
+            }
+        } catch (error) {
+            console.error('Error calculating summary:', error);
+        }
+    });
+}

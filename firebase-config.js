@@ -1,8 +1,10 @@
 // Check if firebase is loaded
 if (typeof firebase === 'undefined') {
     console.error('Firebase SDK not loaded');
-    document.getElementById('loadingMessage').innerHTML = 
-        '<div class="alert alert-danger">Firebase SDK not loaded. Please check your internet connection.</div>';
+    if (document && document.getElementById('loadingMessage')) {
+        document.getElementById('loadingMessage').innerHTML = 
+            '<div class="alert alert-danger">Firebase SDK not loaded. Please check your internet connection.</div>';
+    }
 } else {
     // Your web app's Firebase configuration
     const firebaseConfig = {
@@ -26,15 +28,22 @@ if (typeof firebase === 'undefined') {
         
         // Make them globally available for app.js
         window.budgetApp = window.budgetApp || {};
-        window.budgetApp.firebase = { auth, db };
+        window.budgetApp.firebase = { 
+            auth: auth, 
+            db: db 
+        };
         
         // Dispatch event that firebase is ready
-        const event = new Event('firebaseInitialized');
-        document.dispatchEvent(event);
+        if (document) {
+            const event = new Event('firebaseInitialized');
+            document.dispatchEvent(event);
+        }
         
     } catch (error) {
         console.error('Error initializing Firebase:', error);
-        document.getElementById('loadingMessage').innerHTML = 
-            '<div class="alert alert-danger">Error initializing Firebase: ' + error.message + '</div>';
+        if (document && document.getElementById('loadingMessage')) {
+            document.getElementById('loadingMessage').innerHTML = 
+                '<div class="alert alert-danger">Error initializing Firebase: ' + error.message + '</div>';
+        }
     }
 }

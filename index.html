@@ -321,53 +321,58 @@
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
-        <p class="mt-2">Loading application...</p>
+        <p class="mt-2">Initializing application...</p>
     </div>
 
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     
+    <!-- App Configuration -->
+    <script src="firebase-config.js"></script>
+    
+    <!-- Main Application -->
+    <script src="app.js"></script>
+
+    <script>
+        // This script will run after all the above scripts have loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show loading message
+            const loadingMessage = document.getElementById('loadingMessage');
+            const appContent = document.getElementById('appContent');
+            
+            // Check if Firebase is loaded
+            if (typeof firebase === 'undefined') {
+                loadingMessage.innerHTML = '<div class="alert alert-danger">Failed to load Firebase SDK. Please check your internet connection and refresh the page.</div>';
+                return;
+            }
+            
+            // Listen for Firebase initialization
+            document.addEventListener('firebaseInitialized', function() {
+                // Hide loading message and show app content
+                loadingMessage.style.display = 'none';
+                appContent.style.display = 'block';
+                
+                // Initialize the app if the function exists
+                if (typeof initializeApp === 'function') {
+                    initializeApp();
+                }
+            });
+            
+            // Set a timeout in case Firebase initialization fails silently
+            setTimeout(function() {
+                if (loadingMessage.style.display !== 'none') {
+                    loadingMessage.innerHTML = '<div class="alert alert-warning">Taking longer than expected. Please check your connection and refresh the page.</div>';
+                }
+            }, 10000); // 10 seconds timeout
+        });
+    </script>
+
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Bootstrap JS Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Initialize Firebase -->
-    <script>
-        // Show loading message
-        document.getElementById('loadingMessage').style.display = 'block';
-        
-        // Error handling for Firebase initialization
-        try {
-            // Load firebase config
-            const firebaseScript = document.createElement('script');
-            firebaseScript.src = 'firebase-config.js';
-            firebaseScript.onload = function() {
-                // Load app.js after firebase-config.js is loaded
-                const appScript = document.createElement('script');
-                appScript.type = 'module';
-                appScript.src = 'app.js';
-                appScript.onerror = function() {
-                    console.error('Failed to load app.js');
-                    document.getElementById('loadingMessage').innerHTML = 
-                        '<div class="alert alert-danger">Error loading application. Please check console for details.</div>';
-                };
-                document.body.appendChild(appScript);
-            };
-            firebaseScript.onerror = function() {
-                console.error('Failed to load firebase-config.js');
-                document.getElementById('loadingMessage').innerHTML = 
-                    '<div class="alert alert-danger">Error loading Firebase configuration. Please check console for details.</div>';
-            };
-            document.body.appendChild(firebaseScript);
-        } catch (error) {
-            console.error('Error initializing Firebase:', error);
-            document.getElementById('loadingMessage').innerHTML = 
-                '<div class="alert alert-danger">Error initializing application: ' + error.message + '</div>';
-        }
-    </script>
 </body>
 </html>
