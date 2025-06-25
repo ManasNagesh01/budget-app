@@ -1,20 +1,5 @@
-// Firebase configuration - Replace with your actual Firebase config
-const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
-};
-
-// Import Firebase services
-import { auth, db } from './firebase-config.js';
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+// Firebase services will be available via window.budgetApp.firebase
+let auth, db;
 
 // Key names for FX rate
 let inrToGbpRate = 0.0095; // fallback when offline
@@ -318,8 +303,24 @@ async function initializeApp() {
     });
 }
 
-// Initialize the app when DOM is loaded
-document.addEventListener('DOMContentLoaded', initializeApp);
+// Wait for Firebase to be initialized
+document.addEventListener('firebaseInitialized', function() {
+    // Get Firebase services from the global scope
+    auth = window.budgetApp.firebase.auth;
+    db = window.budgetApp.firebase.db;
+    
+    // Now initialize the app
+    initializeApp();
+    
+    // Hide loading message and show app content
+    document.getElementById('loadingMessage').style.display = 'none';
+    document.getElementById('appContent').style.display = 'block';
+});
+
+// Show loading message initially
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('loadingMessage').style.display = 'block';
+});
 
 // Monzo connection handling
 const MONZO_ACCESS_TOKEN_KEY = 'monzo_access_token';
